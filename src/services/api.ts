@@ -1,9 +1,12 @@
 import axios from 'axios';
 
+// Use the environment variable injected by Railway/Vite, 
+// falling back to localhost for local dev.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'; 
+
 // Create an axios instance with base URL and default config
 const api = axios.create({
-  // Changed from 8000 to 3000 to match the Node.js/Express backend
-  baseURL: 'http://localhost:3000/api', 
+  baseURL: BASE_URL, 
   headers: {
     'Content-Type': 'application/json',
   },
