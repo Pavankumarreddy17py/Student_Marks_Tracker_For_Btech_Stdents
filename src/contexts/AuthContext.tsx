@@ -15,7 +15,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (id: string, password: string) => Promise<User>; // FIX: Explicitly returns Promise<User>
+  login: (id: string, password: string) => Promise<User>;
   register: (id: string, name: string, branch: string, password: string, role: 'Student' | 'Admin', email: string) => Promise<void>;
   logout: () => void;
 }
@@ -70,7 +70,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  // FIX: The login function is updated to return the User object.
   const login = async (id: string, password: string): Promise<User> => {
     try {
       const response = await api.post('/auth/login', { id, password });
@@ -90,9 +89,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const register = async (id: string, name: string, branch: string, password: string, role: 'Student' | 'Admin', email: string) => {
     try {
+      // PASS ALL PARAMETERS to the API
       await api.post('/auth/register', { id, name, branch, password, role, email });
       
-      // Auto-login after successful registration (Note: This is technically redundant if login is called after, but follows the original pattern)
+      // Auto-login after successful registration
       const newUser: User = { id, name, branch, email, role };
       setUser(newUser);
       setIsAuthenticated(true);

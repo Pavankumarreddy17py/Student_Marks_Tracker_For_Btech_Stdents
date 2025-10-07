@@ -1,35 +1,67 @@
+import 'dotenv/config'; // 1. Load ENV first
 import express from 'express';
 import cors from 'cors';
-import { pool } from './db.js'; // <-- Corrected named import { pool }
-import 'dotenv/config'; 
+import { getPool } from './db.js'; // 2. Import the getter function
 const app = express();
+
+// --- GLOBAL UNHANDLED ERROR CATCHING ---
+// These listeners capture any errors that would otherwise silently crash the Node.js process
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
+    // We log the error but keep the process alive in case it's a minor transient error.
+    // In a real production app, you might choose to exit(1) here.
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('CRITICAL: Uncaught Exception:', err);
+    // This is the most dangerous type of error; we log it and exit.
+    process.exit(1);
+});
+// ----------------------------------------
 
 app.use(cors());
 app.use(express.json());
 
+// FIX: Initialize the pool object by calling the getter function inside a try/catch
+let pool;
+try {
+    pool = getPool(); 
+    
+    // Test the connection immediately after getting the pool
+    pool.query('SELECT 1 + 1 AS solution')
+        .then(() => {
+            console.log("✅ Database connection test successful.");
+        })
+        .catch(dbErr => {
+            console.error("❌ Database Connection FAILED:", dbErr.message);
+            // This is likely the cause of your server stopping. Log extensively.
+            throw new Error("Database initialization failed. Check credentials/server status.");
+        });
+
+} catch (e) {
+    console.error("❌ FATAL INITIALIZATION ERROR: Cannot instantiate MySQL pool:", e.message);
+    process.exit(1); // Exit if pool creation fails synchronously
+}
+
 // MARK: HELPER: Dynamically determine the marks table name (partitioning)
 const getMarksTableName = (studentId) => {
     const batchPrefix = studentId.substring(0, 2);
-    // Use an explicit whitelist for supported batches
     if (['25', '26', '27', '28'].includes(batchPrefix)) {
         return `marks_${batchPrefix}`;
     }
-    // Throw error if ID is invalid or unexpected
     throw new Error(`Invalid student ID prefix: ${batchPrefix}`);
 };
 
 
-// Auth routes - MODIFIED FOR SINGLE DATABASE
+// Auth routes - All database interactions below now correctly use the 'pool' instance.
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { id, name, branch, password, email: clientEmail, role } = req.body; 
     
-    // FIX: Generate email if client didn't provide one to satisfy NOT NULL constraint
-    const finalRole = role || 'Student';
+    const finalRole = role || 'Student'; 
     const email = clientEmail || `${id.toLowerCase()}@student.portal.com`; 
 
     if (finalRole === 'Student') {
-      // 1. Check if student ID or email exists in the unified 'students' table
       const [existingStudent] = await pool.query('SELECT id, email FROM students WHERE id = ? OR email = ?', [id, email]);
       
       if (existingStudent.length > 0) {
@@ -41,20 +73,17 @@ app.post('/api/auth/register', async (req, res) => {
         }
       }
       
-      // 2. Insert into unified students table
       await pool.query(
         'INSERT INTO students (id, name, branch, password, email) VALUES (?, ?, ?, ?, ?)',
         [id, name, branch, password, email]
       );
 
     } else if (finalRole === 'Admin') {
-      // 1. Check if admin ID exists in the unified 'admins' table
       const [existingAdmin] = await pool.query('SELECT id FROM admins WHERE id = ?', [id]);
       if (existingAdmin.length > 0) {
         return res.status(400).json({ message: 'Admin ID already exists' });
       }
 
-      // 2. Insert into unified admins table
       await pool.query(
         'INSERT INTO admins (id, name, password) VALUES (?, ?, ?)',
         [id, name, password]
@@ -111,7 +140,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// MARK: MARKS POST - USES DYNAMIC TABLE
 app.post('/api/marks/:semester', async (req, res) => {
   try {
     const semester = parseInt(req.params.semester, 10);
@@ -167,7 +195,6 @@ app.post('/api/marks/:semester', async (req, res) => {
   }
 });
 
-// MARK: MARKS GET - USES DYNAMIC TABLE
 app.get('/api/marks/:studentId', async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -190,7 +217,6 @@ app.get('/api/marks/:studentId', async (req, res) => {
   }
 });
 
-// MARK: ADMIN SUBJECTS POST - USES STATIC 'subjects' TABLE
 app.post('/api/admin/subjects', async (req, res) => {
   try {
     const { name, code, semester, maxInternal, maxExternal, isLab } = req.body;
@@ -221,7 +247,6 @@ app.post('/api/admin/subjects', async (req, res) => {
 });
 
 
-// MARK: ADMIN ANALYTICS GET - USES DYNAMIC TABLE
 app.get('/api/admin/analytics/:year', async (req, res) => {
   try {
     const targetYear = parseInt(req.params.year, 10);
