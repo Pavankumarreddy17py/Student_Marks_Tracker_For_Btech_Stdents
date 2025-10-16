@@ -5,11 +5,11 @@ let poolInstance = null;
 const getDbConfig = () => {
     // This logic correctly selects the Railway variables first, then local variables.
     const config = {
-        host: process.env.MYSQLHOST || process.env.DB_HOST || "turntable.proxy.rlwy.net",
-        user: process.env.MYSQLUSER || process.env.DB_USER || "root",
-        password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || "FglKBzZBbYzYkeheCyaCduEakIIEjQvw",
-        database: process.env.MYSQLDATABASE || process.env.DB_NAME || "railway",
-        port: process.env.MYSQLPORT || process.env.DB_PORT || "33254",
+        host: process.env.MYSQLHOST || process.env.DB_HOST || "",
+        user: process.env.MYSQLUSER || process.env.DB_USER || "",
+        password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || "",
+        database: process.env.MYSQLDATABASE || process.env.DB_NAME || "",
+        port: process.env.MYSQLPORT || process.env.DB_PORT || "",
         
         waitForConnections: true,
         connectionLimit: 10,
